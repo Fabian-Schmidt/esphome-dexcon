@@ -323,7 +323,7 @@ void DexcomBLEClient::read_incomming_msg_(const uint16_t handle, uint8_t *value,
           if (dexcom_msg->glucose_response_msg.crc != crc) {
             ESP_LOGW(TAG, "Glucose - CRC error");
           } else {
-            this->dexcom_msg_ = dexcom_msg;
+            this->dexcom_msg_ = *dexcom_msg;
             this->got_valid_msg_ = true;
 
             if (!enum_value_okay(dexcom_msg->glucose_response_msg.status)) {
@@ -360,7 +360,7 @@ void DexcomBLEClient::read_incomming_msg_(const uint16_t handle, uint8_t *value,
         break;
       case DEXCOM_OPCODE::G7_GLUCOSE_RESPONSE_MSG:
         if (value_len >= (1 + sizeof(G7_GLUCOSE_RESPONSE_MSG))) {
-          this->dexcom_msg_ = dexcom_msg;
+          this->dexcom_msg_ = *dexcom_msg;
           this->got_valid_msg_ = true;
 
           if (!enum_value_okay(dexcom_msg->glucose_response_msg.status)) {
@@ -402,9 +402,9 @@ void DexcomBLEClient::read_incomming_msg_(const uint16_t handle, uint8_t *value,
 void DexcomBLEClient::submit_value_to_sensors_() {
   if (this->got_valid_msg_) {
     if (this->transmitter_model == DEXCOM_MODEL::MODEL_G7) {
-      this->on_message_callback_.call(&this->time_msg_, &this->dexcom_msg_->g7_glucose_response_msg);
+      this->on_message_callback_g7_.call(&this->time_msg_, &this->dexcom_msg_.g7_glucose_response_msg);
     } else {
-      this->on_message_callback_.call(&this->time_msg_, &this->dexcom_msg_->glucose_response_msg);
+      this->on_message_callback_.call(&this->time_msg_, &this->dexcom_msg_.glucose_response_msg);
     }
     this->reset_state_();
     this->last_sensor_submit_ = millis();

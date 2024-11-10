@@ -28,7 +28,7 @@ CONF_TRANSMITTER_ID = "transmitter_id"
 
 def transmitter_id_array(value):
     value = cv.string_strict(value)
-    if len(value) in [4, 6]:
+    if len(value) not in [4, 6]:
         raise cv.Invalid("Transmitter Id must be 4 (G7) or 6 (G5,G6) chars long.")
     return value
 
