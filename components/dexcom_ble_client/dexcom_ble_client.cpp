@@ -306,6 +306,10 @@ void DexcomBLEClient::read_incomming_msg_(const uint16_t handle, uint8_t *value,
                 response.glucose_msg.crc = crc_xmodem(&response, 1 + sizeof(GLUCOSE_MSG));
                 this->write_handle_(handle, (uint8_t *) &response, 1 + sizeof(GLUCOSE_MSG));
                 break;
+              case DEXCOM_MODEL::MODEL_G7:
+                response.opcode = DEXCOM_OPCODE::G6_GLUCOSE_MSG;
+                this->write_handle_(handle, (uint8_t *) &response, 1 + sizeof(GLUCOSE_MSG) - 2/* No CRC */);
+                break;
               default:
                 break;
             }
@@ -319,7 +323,7 @@ void DexcomBLEClient::read_incomming_msg_(const uint16_t handle, uint8_t *value,
           if (dexcom_msg->glucose_response_msg.crc != crc) {
             ESP_LOGW(TAG, "Glucose - CRC error");
           } else {
-            this->glucose_msg_ = dexcom_msg->glucose_response_msg;
+            this->dexcom_msg_ = dexcom_msg;
             this->got_valid_msg_ = true;
 
             if (!enum_value_okay(dexcom_msg->glucose_response_msg.status)) {
@@ -353,8 +357,42 @@ void DexcomBLEClient::read_incomming_msg_(const uint16_t handle, uint8_t *value,
           response.opcode = DEXCOM_OPCODE::DISCONNECT;
           this->write_handle_(handle, (uint8_t *) &response, 1);
         }
-
         break;
+      case DEXCOM_OPCODE::G7_GLUCOSE_RESPONSE_MSG:
+        if (value_len >= (1 + sizeof(G7_GLUCOSE_RESPONSE_MSG))) {
+          this->dexcom_msg_ = dexcom_msg;
+          this->got_valid_msg_ = true;
+
+          if (!enum_value_okay(dexcom_msg->glucose_response_msg.status)) {
+            ESP_LOGW(TAG, "Glucose - Status:          %s (%u)",
+                      enum_to_c_str(dexcom_msg->glucose_response_msg.status),
+                      (uint8_t) dexcom_msg->glucose_response_msg.status);
+          } else {
+            ESP_LOGI(TAG, "Glucose - Status:          %s (%u)",
+                      enum_to_c_str(dexcom_msg->glucose_response_msg.status),
+                      (uint8_t) dexcom_msg->glucose_response_msg.status);
+          }
+
+          ESP_LOGD(TAG, "Glucose - Sequence:        %u", dexcom_msg->glucose_response_msg.sequence);
+          ESP_LOGD(TAG, "Glucose - Timestamp:       %u", dexcom_msg->glucose_response_msg.timestamp);
+          ESP_LOGI(TAG, "Glucose - Glucose:         %u", dexcom_msg->glucose_response_msg.glucose);
+          ESP_LOGD(TAG, "Glucose - DisplayOnly:     %s",
+                    YESNO(dexcom_msg->glucose_response_msg.glucoseIsDisplayOnly));
+
+          if (!enum_value_okay(dexcom_msg->glucose_response_msg.state)) {
+            ESP_LOGW(TAG, "Glucose - State:           %s (%u)", enum_to_c_str(dexcom_msg->glucose_response_msg.state),
+                      (uint8_t) dexcom_msg->glucose_response_msg.state);
+          } else {
+            ESP_LOGI(TAG, "Glucose - State:           %s (%u)", enum_to_c_str(dexcom_msg->glucose_response_msg.state),
+                      (uint8_t) dexcom_msg->glucose_response_msg.state);
+          }
+
+          ESP_LOGI(TAG, "Glucose - Trend:           %i", dexcom_msg->glucose_response_msg.trend);
+          ESP_LOGI(TAG, "Glucose - Glucose predict: %u", dexcom_msg->glucose_response_msg.predicted_glucose);
+
+          response.opcode = DEXCOM_OPCODE::DISCONNECT;
+          this->write_handle_(handle, (uint8_t *) &response, 1);
+        }
       default:
         break;
     }
@@ -363,7 +401,11 @@ void DexcomBLEClient::read_incomming_msg_(const uint16_t handle, uint8_t *value,
 
 void DexcomBLEClient::submit_value_to_sensors_() {
   if (this->got_valid_msg_) {
-    this->on_message_callback_.call(&this->time_msg_, &this->glucose_msg_);
+    if (this->transmitter_model == DEXCOM_MODEL::MODEL_G7) {
+      this->on_message_callback_.call(&this->time_msg_, &this->dexcom_msg_->g7_glucose_response_msg);
+    } else {
+      this->on_message_callback_.call(&this->time_msg_, &this->dexcom_msg_->glucose_response_msg);
+    }
     this->reset_state_();
     this->last_sensor_submit_ = millis();
   }

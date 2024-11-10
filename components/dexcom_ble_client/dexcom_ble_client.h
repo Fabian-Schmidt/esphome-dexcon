@@ -62,20 +62,29 @@ class DexcomBLEClient : public esp32_ble_client::BLEClientBase {
   void set_state(esp32_ble_tracker::ClientState state) override;
 
   void set_transmitter_id(const char *val) {
-    this->transmitter_id_ = val;
-    this->transmitter_name_ = "Dexcom";
-    this->transmitter_name_ += val[4];
-    this->transmitter_name_ += val[5];
-    if (val[0] == 0x38 /*8*/ || (val[0] == 0x32 /*2*/ && val[1] == 0x32 /*2*/ && val[2] == 0x32 /*2*/)) {
-      this->transmitter_model = DEXCOM_MODEL::MODEL_G6;
-    } else {
-      this->transmitter_model = DEXCOM_MODEL::MODEL_G5;
+    if (strlen(val) == 4 || strlen(val) == 6) {
+      this->transmitter_id_ = val;
+      this->transmitter_name_ = "Dexcom";
+      if (strlen(val) == 4) {
+        this->transmitter_model = DEXCOM_MODEL::MODEL_G7;
+      } else {
+        this->transmitter_name_ += val[4];
+        this->transmitter_name_ += val[5];
+        if (val[0] == 0x38 /*8*/ || (val[0] == 0x32 /*2*/ && val[1] == 0x32 /*2*/ && val[2] == 0x32 /*2*/)) {
+          this->transmitter_model = DEXCOM_MODEL::MODEL_G6;
+        } else {
+          this->transmitter_model = DEXCOM_MODEL::MODEL_G5;
+        }
+      }
     }
   }
   void set_use_alternative_bt_channel(bool val) { this->use_alternative_bt_channel_ = val; }
 
   void add_on_message_callback(std::function<void(const TIME_RESPONSE_MSG *, const GLUCOSE_RESPONSE_MSG *)> callback) {
     this->on_message_callback_.add(std::move(callback));
+  }
+  void add_on_message_callback(std::function<void(const TIME_RESPONSE_MSG *, const G7_GLUCOSE_RESPONSE_MSG *)> callback) {
+    this->on_message_callback_g7_.add(std::move(callback));
   }
   void add_on_disconnect_callback(std::function<void()> callback) {
     this->on_disconnect_callback_.add(std::move(callback));
@@ -99,6 +108,7 @@ class DexcomBLEClient : public esp32_ble_client::BLEClientBase {
   bool use_alternative_bt_channel_ = false;
   esp32_ble_tracker::ClientState node_state;
   CallbackManager<void(const TIME_RESPONSE_MSG *, const GLUCOSE_RESPONSE_MSG *)> on_message_callback_{};
+  CallbackManager<void(const TIME_RESPONSE_MSG *, const G7_GLUCOSE_RESPONSE_MSG *)> on_message_callback_g7_{};
   CallbackManager<void()> on_disconnect_callback_{};
 
   uint8_t register_notify_counter_ = 0;
@@ -112,12 +122,12 @@ class DexcomBLEClient : public esp32_ble_client::BLEClientBase {
   uint32_t last_sensor_submit_ = 0;
   bool got_valid_msg_ = false;
   TIME_RESPONSE_MSG time_msg_{};
-  GLUCOSE_RESPONSE_MSG glucose_msg_{};
+  DEXCOM_MSG dexcom_msg_{};
 
   inline void reset_state_() {
     this->got_valid_msg_ = false;
     this->time_msg_ = {};
-    this->glucose_msg_ = {};
+    this->dexcom_msg_ = {};
   }
 };
 

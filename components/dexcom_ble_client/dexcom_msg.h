@@ -9,6 +9,7 @@ enum class DEXCOM_MODEL : uint8_t {
   UNSET = 0x00,
   MODEL_G5 = 0x05,
   MODEL_G6 = 0x06,
+  MODEL_G7 = 0x07,
 };
 
 inline static const char *enum_to_c_str(const DEXCOM_MODEL val) {
@@ -17,6 +18,8 @@ inline static const char *enum_to_c_str(const DEXCOM_MODEL val) {
       return "MODEL_G5";
     case DEXCOM_MODEL::MODEL_G6:
       return "MODEL_G6";
+    case DEXCOM_MODEL::MODEL_G7:
+      return "MODEL_G7";
     default:
       return "";
   }
@@ -38,6 +41,7 @@ enum class DEXCOM_OPCODE : uint8_t {
   G5_GLUCOSE_RESPONSE_MSG = 0x31,
   G6_GLUCOSE_MSG = 0x4E,
   G6_GLUCOSE_RESPONSE_MSG = 0x4F,
+  G7_GLUCOSE_RESPONSE_MSG = 0x4E,
   INVALID_RESPONSE = 0xFF,
 };
 
@@ -296,6 +300,22 @@ struct GLUCOSE_RESPONSE_MSG {  // NOLINT(readability-identifier-naming,altera-st
   uint16_t crc;
 } __attribute__((packed));
 
+struct G7_GLUCOSE_RESPONSE_MSG {  // NOLINT(readability-identifier-naming,altera-struct-pack-align)
+  DEXCOM_TRANSMITTER_STATUS status;
+  /// Seconds since transmitter activation
+  uint32_t timestamp;
+  uint16_t sequence;
+  uint16_t bogus;
+  uint16_t age;
+  uint16_t glucose : 12;
+  uint8_t glucoseIsDisplayOnly : 4;
+  DEXCOM_CALIBRATION_STATE state;
+  int8_t trend;
+  // Mask necessary? 0x03ff?
+  uint16_t predicted_glucose;
+  uint8_t info;
+} __attribute__((packed));
+
 struct INVALID_RESPONSE_MSG {  // NOLINT(readability-identifier-naming,altera-struct-pack-align)
   uint8_t opcode;
   uint8_t msg_length;
@@ -314,6 +334,7 @@ struct DEXCOM_MSG {  // NOLINT(readability-identifier-naming,altera-struct-pack-
     TIME_RESPONSE_MSG time_response;
     GLUCOSE_MSG glucose_msg;
     GLUCOSE_RESPONSE_MSG glucose_response_msg;
+    G7_GLUCOSE_RESPONSE_MSG g7_glucose_response_msg;
     INVALID_RESPONSE_MSG invalid_response;
   };
 } __attribute__((packed));
